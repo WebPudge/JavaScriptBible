@@ -74,10 +74,10 @@ function save(amount, apr, years, zipcode) {
 window.onload = function () {
     //如果浏览器支持本地存储并且上次保存的值存在
     if (window.localStorage && localStorage.loan_amount) {
-        document.getElmentById("amount").value = localStorage.loan_amount;
-        document.getElmentById("apr").value = localStorage.loan_apr;
-        document.getElmentById("years").value = localStorage.loan_years;
-        document.getElmentById("zipcode").value = localStorage.loan_zipcode;
+        document.getElementById("amount").value = localStorage.loan_amount;
+        document.getElementById("apr").value = localStorage.loan_apr;
+        document.getElementById("years").value = localStorage.loan_years;
+        document.getElementById("zipcode").value = localStorage.loan_zipcode;
     }
 };
 
@@ -135,4 +135,79 @@ function chart(principal, interest, monthly, payments) {
     if (arguments.length == 0 || !graph.getContext) return;
 
     //获得画布元素的"context"对象，这个对象定义了一组绘画API
+    var g = graph.getContext("2d");
+    var width = graph.width,
+        height = graph.height;
+
+    //这里的函数作用是将付款数字和美元数据转换成为像素
+    function paymentToX(n) {
+        return n * width / payments;
+    }
+
+    function amountToY(a) {
+        return height - (a * height / (monthly * payments * 1.05));
+    }
+
+    //付款数据时一条从（0,0）到（payments,monthly*payments）的直线
+
+    g.moveTo(paymentToX(0), amountToY(0)); //从左下方绘制
+    g.lineTo(paymentToX(payments), amountToY(monthly * payments)); //绘制到右上方
+    g.lineTo(paymentToX(payments), amountToY(0)); //再绘制右下角
+    g.closePath(); //将结尾连接至开头
+    g.fillStyle = "#f88"; //亮红色
+    g.fill(); //填充矩形
+    g.font = "bold 12px sans-serif"; //定义字体
+    g.fillText("Total Interest Payments", 20, 20); //将文字绘制到图列中
+
+    //很多资产数据并不是线性的，很难将其反应至图表中
+    var equity = 0;
+    g.beginPath(); //开始绘制新图
+    g.moveTo(paymentToX(0), amountToY(0)); //从左下方绘制
+    for (var p = 1; p <= payments; p++) {
+        //计算出每一笔赔付的利息
+        var thisMonthsInterest = (principal - equity) * interest;
+        equity += (monthly - thisMonthsInterest) //得到资产额
+        g.lineTo(paymentToX(p), amountToY(equity)); //将数据绘制到画布上
+    }
+    g.lineTo(paymentToX(payments), amountToY(0)); //将数据线绘制至x轴;
+    g.closePath(); //将结尾连接至开头
+    g.fillStyle = "green"; //用绿色填充
+    g.fill(); //曲线之下的部分均填充
+    g.fillText("Total Equity", 20, 35); //文本颜色设置为绿色
+
+    //再次循环，余额数据显示为黑色粗线条
+    var bal = principal;
+    g.beginPath();
+    g.moveTo(paymentToX(0), amountToY(0));
+    for (var p = 1; p <= payments; p++) {
+        var thisMonthsInterest = bal * interest;
+        bal -= (monthly - thisMonthsInterest); //得到资产额
+        g.lineTo(paymentToX(p), amountToY(bal)); //将直线连接至某点
+    }
+    g.lineWidth = 3; //将直线宽度加粗
+    g.stroke(); //绘制余额的曲线
+    g.fillStyle = "black"; //使用黑色字体
+    g.fillText("Loan Balance", 20, 50); //图例文字
+
+    //将年度数据在x轴做标记
+    g.textAlign = "center"; //文字居中对齐
+    var y = amountToY(0); //y坐标为0
+    for (var year = 1; year * 12 <= payments; year++) { //遍历每年
+        var x = paymentToX(year * 12); //计算标记位置
+        g.fillRect(x - 0.5, y - 3, 1, 3); //开始标记位置
+        if (year == 1) g.fillText("Year", x, y - 5); //在坐标轴做标记
+        if (year % 5 == 0 && year * 12 !== payments) //每5年的数据
+            g.fillText(String(year), x, y - 5);
+    }
+
+    //将赔付数额标记在右边界
+    g.textAlign = "right"; //文字右对齐
+    g.textBaseline = "middle"; //文字垂直居中
+    var ticks = [monthly * payments, principal]; //我们将要用到的两个点
+    var rightEdge = paymentToX(payments); //设置x坐标
+    for (var i = 0; i < ticks.length; i++) { //对每两个点做循环
+        var y = amountToY(ticks[i]); //计算每个标记的y目标
+        g.fillRect(rightEdge - 3, y - 0.5, 3, 1); //绘制标记
+        g.fillText(String(ticks[i].toFixed(0)), rightEdge - 5, y) //绘制文本
+    }
 }
